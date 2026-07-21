@@ -1,0 +1,41 @@
+import OpenAI from 'openai';
+
+const groq = new OpenAI({
+  apiKey: process.env.GROQ_API_KEY,
+  baseURL: 'https://api.groq.com/openai/v1',
+});
+
+export async function generateSolution(problem, lastAttempt) {
+  const prompt = `
+You are a coding tutor. Given this LeetCode problem and the user's last failed attempt,
+respond ONLY with valid JSON (no markdown, no backticks, no preamble) in this exact shape:
+
+{
+  "diagnosis": "short explanation of why their attempt likely failed, or empty string if no attempt",
+  "approach": "clear step-by-step explanation of the correct approach in plain English",
+  "complexity": "time and space complexity of the solution",
+  "solutionCode": "full working solution code"
+}
+
+Problem: ${problem.title}
+Description: ${problem.content}
+
+Last attempt code: ${lastAttempt?.code || 'None'}
+Last attempt status: ${lastAttempt?.status || 'None'}
+`;
+
+  const response = await groq.chat.completions.create({
+    model: 'llama-3.3-70b-versatile',
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.3,
+  });
+
+  const raw = response.choices[0].message.content;
+
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    console.error('Failed to parse agent response as JSON:', raw);
+    throw new Error('Agent returned malformed JSON');
+  }
+}

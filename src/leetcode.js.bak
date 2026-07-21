@@ -1,0 +1,206 @@
+import { LeetCode, Credential } from 'leetcode-query';
+
+let cachedClient = null;
+
+function normalizeStatus(status) {
+  if (!status) return '';
+  return String(status).toLowerCase();
+}
+
+function isAccepted(status) {
+  return normalizeStatus(status).includes('accepted');
+}
+
+async function graphqlRequest(query, variables = {}) {
+  const sessionCookie = process.env.LEETCODE_SESSION;
+  if (!sessionCookie) {
+    throw new Error('LEETCODE_SESSION is not set.');
+  }
+
+  const response = await fetch('https://leetcode.com/graphql', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Cookie': `LEETCODE_SESSION=${sessionCookie}`,
+      'Referer': 'https://leetcode.com',
+    },
+    body: JSON.stringify({ query, variables }),
+  });
+
+  const json = await response.json();
+  if (json.errors) {
+    throw new Error(`GraphQL error: ${JSON.stringify(json.errors)}`);
+  }
+  return json.data;
+}
+
+export async function getLeetCodeClient() {
+  if (cachedClient) return cachedClient;
+
+  const sessionCookie = process.env.LEETCODE_SESSION;
+  if (!sessionCookie) {
+    throw new Error('LEETCODE_SESSION is not set.');
+  }
+
+  const credential = new Credential();
+  await credential.init(sessionCookie);
+  cachedClient = new LeetCode(credential);
+  return cachedClient;
+}
+
+const SUBMISSION_LIST_QUERY = `
+  query submissionList($offset: Int!, $limit: Int!, $lastKey: String) {
+    submissionList(offset: $offset, limit: $limit, lastKey: $lastKey) {
+      lastKey
+      hasNext
+      submissions {
+        id
+        statusDisplay
+        lang
+        timestamp
+        title
+        titleSlug
+      }
+    }
+  }
+`;
+
+const SUBMISSION_DETAIL_QUERY = `
+  query submissionDetails($submissionId: Int!) {
+    submissionDetails(submissionId: $submissionId) {
+      code
+      runtimeDisplay
+      memoryDisplay
+      statusCode
+    }
+  }
+`;
+
+export async function getUserSubmissions() {
+  let offset = 0;
+  const limit = 100;
+  let hasNext = true;
+  const allSubmissions = [];
+
+  while (hasNext) {
+    const data = await graphqlRequest(SUBMISSION_LIST_QUERY, { offset, limit });
+    const list = data?.submissionList;
+    if (!list) break;
+
+    allSubmissions.push(...(list.submissions || []));
+    hasNext = list.hasNext;
+    offset += limit;
+
+    if (offset > 2000) break; // safety cap
+  }
+
+  return allSubmissions.map((submission) => ({
+    id: submission.id,
+    slug: submission.titleSlug,
+    title: submission.title || submission.titleSlug,
+    timestamp: Number(submission.timestamp) || 0,
+    status: submission.statusDisplay || '',
+    language: submission.lang || 'Unknown',
+    code: '', // fetched separately via getSubmissionCode when needed
+  }));
+}
+
+export async function getSubmissionCode(submissionId) {
+  try {
+    const data = await graphqlRequest(SUBMISSION_DETAIL_QUERY, { submissionId: Number(submissionId) });
+    return data?.submissionDetails?.code || '';
+  } catch (error) {
+    return '';
+  }
+}
+
+export async function getUnsolvedProblems() {
+  const submissions = await getUserSubmissions();
+  const attemptsByProblem = new Map();
+
+  for (const submission of submissions) {
+    if (!submission.slug) continue;
+
+    const current = attemptsByProblem.get(submission.slug) || {
+      slug: submission.slug,
+      title: submission.title,
+      firstAttemptTimestamp: submission.timestamp,
+      lastAttemptTimestamp: submission.timestamp,
+      lastStatus: submission.status,
+      lastSubmissionId: submission.id,
+      language: submission.language,
+    };
+
+    if (!current.firstAttemptTimestamp || submission.timestamp < current.firstAttemptTimestamp) {
+      current.firstAttemptTimestamp = submission.timestamp;
+    }
+
+    if (submission.timestamp >= (current.lastAttemptTimestamp || 0)) {
+      current.lastAttemptTimestamp = submission.timestamp;
+      current.lastStatus = submission.status;
+      current.lastSubmissionId = submission.id;
+      current.language = submission.language;
+    }
+
+    attemptsByProblem.set(submission.slug, current);
+  }
+
+  return Array.from(attemptsByProblem.values())
+    .filter((problem) => !isAccepted(problem.lastStatus))
+    .sort((a, b) => (a.firstAttemptTimestamp || 0) - (b.firstAttemptTimestamp || 0));
+}
+
+export async function getLastAttempt(slug) {
+  const submissions = await getUserSubmissions();
+  const relevant = submissions.filter((submission) => submission.slug === slug);
+
+  if (!relevant.length) {
+    return null;
+  }
+
+  relevant.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  const latest = relevant[0];
+  const code = await getSubmissionCode(latest.id);
+
+  return {
+    slug,
+    title: latest.title,
+    status: latest.status,
+    code,
+    language: latest.language,
+    failureReason: latest.status,
+  };
+}
+
+export async function getProblemDetails(slug) {
+  const client = await getLeetCodeClient();
+  const attempts = [
+    () => client.problem(slug),
+    () => client.problemDetail(slug),
+    () => client.problem({ slug }),
+  ];
+
+  let lastError = null;
+
+  for (const attempt of attempts) {
+    try {
+      const result = await attempt();
+      const detail = result?.data?.question || result?.question || result?.problem || result;
+      if (!detail) {
+        continue;
+      }
+
+      return {
+        slug,
+        title: detail.title || detail.questionTitle || slug,
+        statement: detail.content || detail.description || detail.questionContent || '',
+        constraints: detail.constraints || detail.constraint || '',
+        examples: detail.examples || detail.exampleTestcases || [],
+      };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw new Error(`Unable to fetch LeetCode details for ${slug}: ${lastError?.message || 'Unknown error'}`);
+}

@@ -1,0 +1,16 @@
+{
+  "name": "leetcode-mailer",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "lint": "node --check src/index.js && node --check src/leetcode.js && node --check src/tracker.js && node --check src/agent.js && node --check src/email.js && node --check src/utils.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.0.1",
+    "leetcode-query": "^2.0.1",
+    "openai": "^4.0.0",
+    "resend": "^4.0.0"
+  }
+}
