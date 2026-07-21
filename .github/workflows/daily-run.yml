@@ -2,13 +2,17 @@ name: Daily LeetCode Mailer
 
 on:
   schedule:
-    - cron: '30 14 * * *'
+    # Runs every day at 8:30 PM IST (3:00 PM UTC)
+    - cron: "0 15 * * *"
   workflow_dispatch:
+
 permissions:
   contents: write
+
 jobs:
   run-mailer:
     runs-on: ubuntu-latest
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -18,26 +22,22 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
 
       - name: Install dependencies
         run: npm install
 
-      - name: Create .env from GitHub secrets
-        run: |
-          cat > .env <<EOF
-          LEETCODE_SESSION=${{ secrets.LEETCODE_SESSION }}
-          GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}
-          RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}
-          MY_EMAIL=${{ secrets.MY_EMAIL }}
-          FROM_EMAIL=${{ secrets.FROM_EMAIL }}
-          EOF
-
-      - name: Run mailer
+      - name: Run LeetCode Mailer
+        env:
+          LEETCODE_SESSION: ${{ secrets.LEETCODE_SESSION }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MY_EMAIL: ${{ secrets.MY_EMAIL }}
+          FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
         run: node src/index.js
 
-      - name: Commit progress state
+      - name: Commit updated progress
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -48,5 +48,5 @@ jobs:
             echo "No progress changes."
           else
             git commit -m "Update LeetCode progress"
-            git push origin main
+            git push origin HEAD:main
           fi
