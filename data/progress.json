@@ -3,6 +3,7 @@
     "maximize-active-section-with-trade-i",
     "two-sum",
     "add-two-numbers",
-    "longest-substring-without-repeating-characters"
+    "longest-substring-without-repeating-characters",
+    "median-of-two-sorted-arrays"
   ]
 }
