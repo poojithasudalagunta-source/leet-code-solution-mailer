@@ -8,6 +8,7 @@
     "longest-palindromic-substring",
     "zigzag-conversion",
     "reverse-integer",
-    "string-to-integer-atoi"
+    "string-to-integer-atoi",
+    "palindrome-number"
   ]
 }
