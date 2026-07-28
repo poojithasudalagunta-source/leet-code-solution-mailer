@@ -9,6 +9,7 @@
     "zigzag-conversion",
     "reverse-integer",
     "string-to-integer-atoi",
-    "palindrome-number"
+    "palindrome-number",
+    "regular-expression-matching"
   ]
 }
