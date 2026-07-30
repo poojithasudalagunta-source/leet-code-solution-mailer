@@ -11,6 +11,7 @@
     "string-to-integer-atoi",
     "palindrome-number",
     "regular-expression-matching",
-    "container-with-most-water"
+    "container-with-most-water",
+    "integer-to-roman"
   ]
 }
