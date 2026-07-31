@@ -12,6 +12,7 @@
     "palindrome-number",
     "regular-expression-matching",
     "container-with-most-water",
-    "integer-to-roman"
+    "integer-to-roman",
+    "roman-to-integer"
   ]
 }
