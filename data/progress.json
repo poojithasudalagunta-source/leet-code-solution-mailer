@@ -13,6 +13,7 @@
     "regular-expression-matching",
     "container-with-most-water",
     "integer-to-roman",
-    "roman-to-integer"
+    "roman-to-integer",
+    "longest-common-prefix"
   ]
 }
